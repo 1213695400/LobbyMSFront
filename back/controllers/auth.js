@@ -1,8 +1,12 @@
 const ErrorResponse = require("../utils/errorResponse");
 const User = require("../models/User");
+const bcrypt = require("bcryptjs");
+const jwt = require("jsonwebtoken");
 
 const sendToken = (user, statusCode, res) => {
-  const token = user.getSignedJwtToken();
+  const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+    expiresIn: process.env.JWT_EXPIRE,
+  });
   res.status(statusCode).json({ sucess: true, token });
 };
 
@@ -37,17 +41,27 @@ exports.login = async (req, res, next) => {
 };
 
 exports.createUser = async (req, res, next) => {
-  const { username, email, password } = req.body;
+  const { wechat, name, account, password, inviteby } = req.body;
+
+  console.log("Create user", req.body);
 
   try {
+    const cryptPassword = await bcrypt.hash(password, 10);
+
+    const userExists = await User.findOne({ account });
+    if (userExists) {
+      return next(new ErrorResponse("User already exists", 400));
+    }
+
     const user = await User.create({
-      avatar: "https://i.imgur.com/6VBx3io.png",
-      username,
-      email,
-      password,
+      password: cryptPassword,
+      wechat,
+      name,
+      account,
+      inviteby,
     });
     sendToken(user, 200, res);
   } catch (err) {
     next(err);
   }
-}
+};
